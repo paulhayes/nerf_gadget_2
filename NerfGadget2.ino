@@ -22,9 +22,9 @@ boolean resetButtonLastState;
 
 int mode = 1;
 
-const int numMagazines = 4;
+const int numMagazines = 5;
 int magazine = 0;
-int magazines[4] = {6,18,25,35};
+int magazines[5] = {6,12,18,25,35};
 
 
 SevSeg myDisplay;
