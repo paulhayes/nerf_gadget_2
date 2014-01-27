@@ -2,19 +2,22 @@
 #include <EEPROM.h>  // Brightness, Baud rate, and I2C address are stored in EEPROM
 #include "settings.h"  // Defines command bytes, EEPROM addresses, display data
 #include "SevSeg.h" //Library to control generic seven segment displays
+#include <PinChangeInt.h>
 #include<stdlib.h>
 
-#define FRAMEPERIOD 200; 
+const int displayTimeout = 2;
 
-const int MODE_MAGAZINE = 0;
-const int MODE_SPEEDOMETER = 1;
+const uint8_t MODE_MAGAZINE = 0;
+const uint8_t MODE_SPEEDOMETER = 1;
 
-const int NUM_DIGITS = 4;
+const uint8_t NUM_DIGITS = 4;
 const int THRESHOLD = 800;
 
-const int modeButton = 10;
-const int actionButton = 11;
-const int resetButton = 12;
+const uint8_t modeButton = 10;
+const uint8_t actionButton = 11;
+const uint8_t resetButton = 12;
+
+const uint8_t interruptPin = 13;
 
 boolean modeButtonLastState;
 boolean actionButtonLastState;
@@ -29,9 +32,8 @@ int magazines[5] = {6,12,18,25,35};
 
 SevSeg myDisplay;
 
-double speed = 0.0;
-double nerfDartLength = 0.071;
-
+float speed = 0.0;
+double nerfDartLength = 0.07;
 const int maxDuration = (0ul)-1;
 
 
@@ -50,6 +52,10 @@ unsigned long endTime = 0;
 
 void setup(){
   initDisplay();
+  
+  pinMode(interruptPin, INPUT);
+  PCintPort::attachInterrupt(interruptPin, &changeDetected, FALLING);
+  PCintPort::attachInterrupt(interruptPin, &changeDetected, RISING);
 
   display.digits[0] = 8;
   display.digits[1] = 8;
@@ -67,7 +73,7 @@ void setup(){
 }
 
 void loop(){
-
+/*
   while( true ){
     if( analogRead(A6) < THRESHOLD ){
       startTime = micros();  
@@ -87,29 +93,33 @@ void loop(){
     }
 
     }
-    
+*/
 
     CheckButtons();
     switch(mode){
       case MODE_MAGAZINE:
-        displayInt( magazine );
+        displayMagazine();
         break;
       case MODE_SPEEDOMETER:
-        displayDouble( speed );
+        displaySpeed();
         break;
-    }
-    /*
-    int analogReading = analogRead(A6);
-    double voltage = analogReading * 0.0049;
-    double duration = 0.001 * ( endTime - startTime ) ;
-    //displayDouble( voltage );
-    displayInt(analogReading);
-    */
-  }
-    
-   
-  
+    } 
 
+}
+
+void displayMagazine(){
+  displayInt( magazine );
+}
+
+void displaySpeed(){
+  if( speed > 0 ){
+    displayFloat( speed );
+  
+    unsigned long currentTime = micros();
+    if( ( currentTime - endTime ) > 1000000 * displayTimeout ){
+      speed = 0;
+    }
+  }
 }
 
   inline void CheckButtons(){
@@ -142,7 +152,6 @@ void loop(){
 
 inline void ActionPressed(){
   if( mode == MODE_MAGAZINE ){
-    magazine--;
     MagazineMode();
   }
   else {
@@ -156,7 +165,7 @@ inline void ResetPressed(){
     if( i==numMagazines ) i=0;
     Serial.println( i );
     magazine = magazines[i];
-    MagazineMode();
+    //MagazineMode();
   }
   else {
     
@@ -164,12 +173,16 @@ inline void ResetPressed(){
 }
 
 inline void MagazineMode(){
+  magazine--;
   if( magazine < 0 ) magazine = 0;
 }
 
 
 void SpeedometerMode(){
   unsigned long duration = 0;
+  
+  /*
+  
   if( endTime < startTime ) {
     duration = ( maxDuration - startTime ) + endTime;
   }
@@ -182,6 +195,44 @@ void SpeedometerMode(){
     Serial.print( "speed: " );
     Serial.println( speed );      
   }
+  */
+  
+  if( digitalRead(interruptPin) == LOW ){
+    startTime = micros();
+    return;
+  }
+  endTime = micros();
+  if( endTime < startTime ) {
+    duration = ( maxDuration - startTime ) + endTime;
+  }
+  else duration = endTime - startTime;
+  
+  speed = nerfDartLength * 1000000.0 / duration;
+  
+  if( Serial ){
+    Serial.print("bullet detected");
+    Serial.print(" ");
+    Serial.print( startTime / 1000000.0 );
+    Serial.print(" ");
+    Serial.print( endTime / 1000000.0 );
+    Serial.print(" ");
+    Serial.println( speed );
+  }
+  
+}
+
+void changeDetected(){
+  
+  switch(mode){
+      case MODE_MAGAZINE:
+        if( digitalRead(interruptPin) == LOW ){
+          MagazineMode();
+        }
+        break;
+      case MODE_SPEEDOMETER:
+        SpeedometerMode();
+        break;
+    }
   
   
 }
@@ -220,9 +271,11 @@ void initDisplay(){
   segmentColon, segmentApostrophe);
   
   myDisplay.SetBrightness(100);
+    
 }
 
 void displayInt(int value){
+  /*
   byte thousands = ( value / 1000 ) % 10;
   byte hundreds = ( value / 100 ) % 10;
   byte tens = ( value / 10 ) % 10;
@@ -233,6 +286,11 @@ void displayInt(int value){
   display.digits[2] = tens;
   display.digits[3] = ones;
   display.decimals = 0x0;
+  */
+  
+  sprintf( display.digits, "% 4d", value );
+  display.decimals = 0;
+  if( display.digits[2] == ' ' ) display.digits[2] = '0';
   
   myDisplay.DisplayString(display.digits, display.decimals);
 
@@ -262,6 +320,25 @@ void displayDouble(double value){
   
   myDisplay.DisplayString(display.digits, display.decimals);
 
+}
+
+void displayFloat(float value){
+  char analogChars[NUM_DIGITS+1];
+  //char numChars[NUM_DIGITS];
+  dtostrf( speed, 5, 1, analogChars );
+  int j=0;
+  for(int i=0;i<5;i++){
+    if( analogChars[i] != '.' ) {
+      display.digits[j] = analogChars[i];
+      j++;
+    }
+    else{
+      display.decimals = 1 << (i-1);
+    }
+  }
+  
+  myDisplay.DisplayString(display.digits, display.decimals);
+    
 }
 
 
