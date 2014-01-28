@@ -17,8 +17,7 @@ Requires
 
 1x 220Ohn resistor
 
-<img src="https://raw2.github.com/paulhayes/nerf_gadget_2/master/images/NerfGadget%202%20closeup.jpg" style="float:right;width:640;height:480"></img>
-![prototype](https://raw2.github.com/paulhayes/nerf_gadget_2/master/images/NerfGadget%202%20closeup.jpg)
+<img src="https://raw2.github.com/paulhayes/nerf_gadget_2/master/images/NerfGadget%202%20closeup.jpg" style="display:block;float:right;width:640px;height:480px"></img>
 
 Components
 
