@@ -13,4 +13,19 @@ Requires
 
 3x Microswitches
 
+1x 1k preset variable resistor.
+
+1x 220Ohn resistor
+
+<img src="https://raw2.github.com/paulhayes/nerf_gadget_2/master/images/NerfGadget%202%20closeup.jpg" style="float:right;width:640;height:480"></img>
 ![prototype](https://raw2.github.com/paulhayes/nerf_gadget_2/master/images/NerfGadget%202%20closeup.jpg)
+
+Components
+
+
+Step 1
+Following [these instructions](https://github.com/sparkfun/Serial7SegmentDisplay/wiki/Customizing%20the%20Display), for setting up Arduino IDE for use with Seven Segment Display. 
+
+Step 2
+Seperate the QRD1114 sensor and emitter from thier housing. 
+
