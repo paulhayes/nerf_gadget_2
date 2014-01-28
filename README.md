@@ -7,19 +7,19 @@ The Nerf Gadget acts as both a magazine counter, and also a bullet speed measuri
 
 Requires
 
-1x 7-Segment Serial Display by Sparkfun Electronics ( https://www.sparkfun.com/products/11441 )
++ Multimeter
++ FTDI Programmer
 
-1x QRD1114 Reflective Object Sensor
-
-3x Microswitches
-
-1x 1k preset variable resistor.
-
-1x 220Ohn resistor
-
-<img src="https://raw2.github.com/paulhayes/nerf_gadget_2/master/images/NerfGadget%202%20closeup.jpg" style="display:block;float:right;width:640px;height:480px"></img>
 
 Components
+
++ 1x 7-Segment Serial Display by Sparkfun Electronics ( https://www.sparkfun.com/products/11441 )
++ 1x QRD1114 Reflective Object Sensor
++ 3x Microswitches
++ 1x 1k preset variable resistor.
++ 1x 220Ohm resistor
+
+[](https://raw2.github.com/paulhayes/nerf_gadget_2/master/images/NerfGadget%202%20closeup.jpg =640x480) 
 
 
 Step 1
