@@ -19,7 +19,7 @@ Components
 + 1x 1k preset variable resistor.
 + 1x 220Ohm resistor
 
-[](https://raw2.github.com/paulhayes/nerf_gadget_2/master/images/NerfGadget%202%20closeup.jpg =640x480) 
+[prototype](https://raw2.github.com/paulhayes/nerf_gadget_2/master/images/NerfGadget%202%20closeup.jpg =640x480) 
 
 
 Step 1
