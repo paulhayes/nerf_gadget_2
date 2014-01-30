@@ -26,5 +26,8 @@ Step 1
 Following [these instructions](https://github.com/sparkfun/Serial7SegmentDisplay/wiki/Customizing%20the%20Display), for setting up Arduino IDE for use with Seven Segment Display. 
 
 Step 2
+Download pinchangeint-v2.19beta.zip from https://code.google.com/p/arduino-pinchangeint/downloads/list. Unzip the archive and put the three directories in your Arduino Library directory.
+
+Step 3
 Seperate the QRD1114 sensor and emitter from thier housing. 
 
