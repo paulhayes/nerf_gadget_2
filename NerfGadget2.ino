@@ -23,7 +23,7 @@ boolean modeButtonLastState;
 boolean actionButtonLastState;
 boolean resetButtonLastState;
 
-int mode = 1;
+int mode = 0;
 
 const int numMagazines = 5;
 int magazine = 0;
@@ -120,6 +120,8 @@ void displaySpeed(){
       speed = 0;
     }
   }
+  else {
+  }
 }
 
   inline void CheckButtons(){
@@ -197,7 +199,7 @@ void SpeedometerMode(){
   }
   */
   
-  if( digitalRead(interruptPin) == LOW ){
+  if( digitalRead(interruptPin) == HIGH ){
     startTime = micros();
     return;
   }
@@ -225,7 +227,7 @@ void changeDetected(){
   
   switch(mode){
       case MODE_MAGAZINE:
-        if( digitalRead(interruptPin) == LOW ){
+        if( digitalRead(interruptPin) == HIGH ){
           MagazineMode();
         }
         break;
