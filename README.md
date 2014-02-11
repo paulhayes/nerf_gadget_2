@@ -19,7 +19,7 @@ Circuit Components
 + 3x Microswitches
 + 1x 1kΩ trimming potentiometer
 + 1x 220Ω resistor
-+ 1x 10kΩ resistor
++ 4x 10kΩ resistor
 + 1x 15kΩ resistor
 
 Sensor Housing
