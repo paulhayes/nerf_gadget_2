@@ -1,11 +1,34 @@
-#include <Wire.h>  // Handles I2C
-#include <EEPROM.h>  // Brightness, Baud rate, and I2C address are stored in EEPROM
-#include "settings.h"  // Defines command bytes, EEPROM addresses, display data
 #include "SevSeg.h" //Library to control generic seven segment displays
-#include <PinChangeInt.h>
-#include<stdlib.h>
 
-const int displayTimeout = 2;
+#define displayTimeout 5
+
+const float nerfBulletLength = 0.07;
+const unsigned long maxDuration = (0ul)-1;
+
+/* Sensor variables */
+
+volatile uint8_t readFlag;
+volatile int analogVal;
+volatile int lastAnalogVal;
+volatile unsigned long lastAnalogReadTime;
+
+int lowestRestVal;
+int heighestRestVal;
+int avgRestVal;
+long analogTotal = 0;
+long analogReads = 0;
+
+boolean isBulletCrossing;
+int threshold = 20;
+
+/* Speed mode variables */
+
+unsigned long startTime;
+unsigned long endTime;
+float speed ;
+
+
+/* Interface variables */
 
 const uint8_t MODE_MAGAZINE = 0;
 const uint8_t MODE_SPEEDOMETER = 1;
@@ -13,11 +36,9 @@ const uint8_t MODE_SPEEDOMETER = 1;
 const uint8_t NUM_DIGITS = 4;
 const int THRESHOLD = 800;
 
-const uint8_t modeButton = 10;
-const uint8_t actionButton = 11;
-const uint8_t resetButton = 12;
-
-const uint8_t interruptPin = 13;
+const uint8_t modeButton = MISO;
+const uint8_t actionButton = SCK;
+const uint8_t resetButton = MOSI;
 
 boolean modeButtonLastState;
 boolean actionButtonLastState;
@@ -25,130 +46,84 @@ boolean resetButtonLastState;
 
 int mode = 0;
 
+unsigned long loopCounter = 0;
+
+/* Magazine mode variables */
+
 const int numMagazines = 5;
 volatile int magazine = 0;
 int magazines[5] = {6,12,18,25,35};
 
 
-SevSeg myDisplay;
+/* Display variables */
 
-volatile float speed = 0.0;
-
-const double nerfDartLength = 0.07;
-const unsigned long maxDuration = (0ul)-1;
+SevSeg myDisplay; //Create an instance of the object
 
 struct display
 {
   char digits[4];
   unsigned char decimals;
   unsigned char cursor;
-  
-  
 } 
-display;  // displays be displays
-
-unsigned long startTime = 0;
-unsigned long endTime = 0;
+speedDisplay, magazineDisplay;  
+boolean displayOn = true;
 
 void setup(){
-  /*
-  initDisplay();
-  
-  pinMode(interruptPin, INPUT);
-  PCintPort::attachInterrupt(interruptPin, &changeDetected, FALLING);
-  PCintPort::attachInterrupt(interruptPin, &changeDetected, RISING);
+  //Serial.begin(9600);
+  setupButtons();
+  setupFreeRunningAnalog();
+  setupDisplay();
+  myDisplay.SetBrightness(100);
+  displayFloat( speed );
+  displayInt( magazine );
 
-  display.digits[0] = 8;
-  display.digits[1] = 8;
-  display.digits[2] = 8;
-  display.digits[3] = 8;  
-  display.decimals = 0x00;  
-  
-  pinMode(modeButton, INPUT);    
-  pinMode(actionButton, INPUT);    
-  pinMode(resetButton, INPUT);
-  //digitalWrite(modeButton, LOW);
-  //digitalWrite(actionButton, LOW);
-  //digitalWrite(resetButton, LOW);  
-  */
-  Serial.begin(9600);
-  while(!Serial);
-  Serial.println("test");
 }
+
 
 void loop(){
-/*
-  while( true ){
-    if( analogRead(A6) < THRESHOLD ){
-      startTime = micros();  
-      while( analogRead(A6) < THRESHOLD ){
-
-      }
-      endTime = micros();
-      
-      switch(mode){
-      case MODE_MAGAZINE:
-        magazine--;
-        MagazineMode();
-        break;
-      case MODE_SPEEDOMETER:
-        SpeedometerMode();
-        break;
-    }
-
-    }
-*/
-
-    CheckButtons();
-    switch(mode){
-      case MODE_MAGAZINE:
-        displayMagazine();
-        break;
-      case MODE_SPEEDOMETER:
-        displaySpeed();
-        break;
-    } 
-
+  loopCounter++;
+  if(readFlag==1) checkAnalog();
+  if( isBulletCrossing ) return;
+  checkButtons();
+  switch(mode){
+    case MODE_MAGAZINE:
+      displayMagazine();
+      break;
+    case MODE_SPEEDOMETER:
+      displaySpeed();
+      break;
+  } 
 }
 
-void displayMagazine(){
-  displayInt( magazine );
+inline void displayMagazine(){
+  myDisplay.DisplayString(magazineDisplay.digits, magazineDisplay.decimals);
 }
 
-void displaySpeed(){
-  if( speed > 0 ){
-    displayFloat( speed );
-  
-    unsigned long currentTime = micros();
-    if( ( currentTime - endTime ) > 1000000 * displayTimeout ){
-      speed = 0;
+inline void displaySpeed(){    
+    
+    if( displayOn ){
+      myDisplay.DisplayString(speedDisplay.digits, speedDisplay.decimals);
+      unsigned long currentTime = micros();
+      if( ( currentTime - endTime ) > 1000000 * displayTimeout ) displayOn = false;
     }
-  }
-  else {
-  }
 }
 
-  inline void CheckButtons(){
+inline void checkButtons(){
   boolean modeButtonState = digitalRead( modeButton ) == HIGH;
   boolean actionButtonState = digitalRead( actionButton ) == HIGH;  
   boolean resetButtonState = digitalRead( resetButton ) == HIGH;
   
   if( modeButtonState != modeButtonLastState && !modeButtonState ){
-    mode = ( mode + 1 ) % 2;
-    displayInt( 0 );
-    Serial.print("mode pressed ");
-    Serial.println( mode );
+    ModePressed();
   }
 
   if( actionButtonState != actionButtonLastState && !actionButtonState ){
     ActionPressed();
-    Serial.println("action pressed");
   }
 
   if( resetButtonState != resetButtonLastState && !resetButtonState ){
     ResetPressed();
-    Serial.println("reset pressed");
-
+    
   }
   
   modeButtonLastState = modeButtonState;
@@ -156,11 +131,38 @@ void displaySpeed(){
   resetButtonLastState = resetButtonState;
 }
 
+
+void onBulletEnter(){
+  startTime = lastAnalogReadTime;
+}
+
+void onBulletExit(){
+  
+  switch(mode){
+      case MODE_SPEEDOMETER:
+        SpeedometerMode();
+        
+      case MODE_MAGAZINE:
+          MagazineMode();
+      break;
+  }
+  
+}
+
+inline void ModePressed(){
+    mode = ( mode + 1 ) % 2;
+    endTime=micros();
+    displayOn = true;
+    resetCalibration();
+}
+
 inline void ActionPressed(){
   if( mode == MODE_MAGAZINE ){
     MagazineMode();
   }
   else {
+    endTime = micros();
+    displayOn = true;
   }
 }
 
@@ -169,9 +171,8 @@ inline void ResetPressed(){
     int i=0;
     while( magazines[i] <= magazine && i<numMagazines ) i++;
     if( i==numMagazines ) i=0;
-    Serial.println( i );
     magazine = magazines[i];
-    //MagazineMode();
+    displayInt( magazine );
   }
   else {
     
@@ -181,68 +182,110 @@ inline void ResetPressed(){
 inline void MagazineMode(){
   magazine--;
   if( magazine < 0 ) magazine = 0;
+  displayInt( magazine );
 }
 
+inline void SpeedometerMode(){
+  endTime = lastAnalogReadTime;
+  displayOn = true;
+  unsigned long duration = ( endTime > startTime ) ? endTime - startTime : ( maxDuration - startTime ) + endTime ;
+  speed = nerfBulletLength * 1000000 / duration;
+  displayFloat( speed );
 
-void SpeedometerMode(){
-  unsigned long duration = 0;
-  
-  /*
-  
-  if( endTime < startTime ) {
-    duration = ( maxDuration - startTime ) + endTime;
-  }
-  else duration = endTime - startTime;
-   
-  speed = nerfDartLength * 1000000.0 / duration;
-  
-  if( Serial ){
-    Serial.println( duration );
-    Serial.print( "speed: " );
-    Serial.println( speed );      
-  }
-  */
-  
-  if( digitalRead(interruptPin) == HIGH ){
-    startTime = micros();
-    return;
-  }
-  endTime = micros();
-  if( endTime < startTime ) {
-    duration = ( maxDuration - startTime ) + endTime;
-  }
-  else duration = endTime - startTime;
-  
-  speed = nerfDartLength * 1000000.0 / duration;
-  
-  if( Serial ){
-    Serial.print("bullet detected");
-    Serial.print(" ");
-    Serial.print( startTime / 1000000.0 );
-    Serial.print(" ");
-    Serial.print( endTime / 1000000.0 );
-    Serial.print(" ");
-    Serial.println( speed );
-  }
-  
 }
 
-void changeDetected(){
-  
-  switch(mode){
-      case MODE_SPEEDOMETER:
-        SpeedometerMode();
-      case MODE_MAGAZINE:
-        if( digitalRead(interruptPin) == HIGH ){
-          MagazineMode();
-        }
-        break;
+inline void resetCalibration(){
+  analogReads = 0;
+}
+
+/*
+void inline checkAnalog(){
+    if( analogReadCounter == 1 ) return;
+    if( !isBulletCrossing && ( ( analogVal - lastAnalogVal ) > 10 ) ){
+      isBulletCrossing = true;
+      onBulletEnter();
     }
+    else if( isBulletCrossing && ( ( analogVal - lastAnalogVal ) < 10 ) ){
+      isBulletCrossing = false;
+      onBulletExit();
+    }
+}*/
+
+
+void checkAnalog(){ 
+  if( analogReads <= 100 ){
+      if( analogReads == 100 ){
+        avgRestVal = analogTotal / analogReads;
+        isBulletCrossing = false;
+        analogReads++;          
+        return;
+      }
+      analogTotal += analogVal;
+      if( lowestRestVal > analogVal || analogReads == 0 ) lowestRestVal = analogVal;
+      if( heighestRestVal < analogVal || analogReads == 0 ) heighestRestVal = analogVal;
+      analogReads++;
+  }else if( !isBulletCrossing && analogVal > avgRestVal + threshold ){
+    isBulletCrossing = true;
+    onBulletEnter();
+    
+  }else if( isBulletCrossing && analogVal <= heighestRestVal ){
+      isBulletCrossing = false;
+      onBulletExit();
+  }else if( !isBulletCrossing ){
+    // If the bullet hasn't been detected, adjust avgerage, heighest and lowest analog values 
+    if( analogVal > avgRestVal ) avgRestVal++;
+    if( analogVal < avgRestVal ) avgRestVal--;
+    
+    if( analogVal > heighestRestVal ) heighestRestVal = analogVal;
+    else if( loopCounter % 10 == 0 ) heighestRestVal--;
+    if( analogVal < lowestRestVal ) lowestRestVal = analogVal;
+    else if( loopCounter % 10 == 0 ) lowestRestVal++;
+
+  }
+}
+
+void displayInt(int value){
   
+  sprintf( magazineDisplay.digits, "% 4d", value );
+  magazineDisplay.decimals = 0;
+  if( magazineDisplay.digits[2] == ' ' ) magazineDisplay.digits[2] = '0';
+  
+
+}
+
+void displayFloat(float value){
+  char analogChars[NUM_DIGITS+1];
+  //char numChars[NUM_DIGITS];
+  dtostrf( speed, 5, 1, analogChars );
+  int j=0;
+  for(int i=0;i<5;i++){
+    if( analogChars[i] != '.' ) {
+      speedDisplay.digits[j] = analogChars[i];
+      j++;
+    }
+    else{
+      speedDisplay.decimals = 1 << (i-1);
+    }
+  }
+  
+    
+}
+
+ISR(ADC_vect){
+  readFlag = 1;
+  // Must read low first
+  analogVal = ADCL | (ADCH << 8);
+  lastAnalogReadTime = micros();
   
 }
 
-void initDisplay(){
+void setupButtons(){
+  pinMode(modeButton, INPUT);
+  pinMode(actionButton, INPUT);
+  pinMode(resetButton, INPUT);
+}
+
+void setupDisplay(){
   int digit1 = 16; // DIG1 = A2/16 (PC2)
   int digit2 = 17; // DIG2 = A3/17 (PC3)
   int digit3 = 3;  // DIG3 = D3 (PD3)
@@ -274,76 +317,57 @@ void initDisplay(){
   segA, segB, segC, segD, segE, segF, segG, 
   segDP,
   segmentColon, segmentApostrophe);
+}
+
+void setupFreeRunningAnalog(){
   
-  myDisplay.SetBrightness(100);
+  // clear ADLAR in ADMUX (0x7C) to right-adjust the result
+  // ADCL will contain lower 8 bits, ADCH upper 2 (in last two bits)
+  ADMUX &= B11011111;
+  
+  // Set REFS1..0 in ADMUX (0x7C) to change reference voltage to the
+  // proper source (01)
+  ADMUX &= B00111111;
+  ADMUX |= B01000000;
+  
+  // Clear MUX3..0 in ADMUX (0x7C) in preparation for setting the analog
+  // input
+  ADMUX &= B11110000;
+  
+  // Set MUX3..0 in ADMUX (0x7C) to read from AD8 (Internal temp)
+  // Do not set above 15! You will overrun other parts of ADMUX. A full
+  // list of possible inputs is available in Table 24-4 of the ATMega328
+  // datasheet
     
+  ADMUX |= 6;
+  // ADMUX |= B00001000; // Binary equivalent
+  
+  // Set ADEN in ADCSRA (0x7A) to enable the ADC.
+  // Note, this instruction takes 12 ADC clocks to execute
+  ADCSRA |= B10000000;
+  
+  // Set ADATE in ADCSRA (0x7A) to enable auto-triggering.
+  ADCSRA |= B00100000;
+  
+  // Clear ADTS2..0 in ADCSRB (0x7B) to set trigger mode to free running.
+  // This means that as soon as an ADC has finished, the next will be
+  // immediately started.
+  ADCSRB &= B11111000;
+  
+  // Set the Prescaler to 4 (16000KHz/64 = 250KHz)
+  // Above 200KHz 10-bit results are not reliable.
+  ADCSRA |= B00000110 ;
+  // Set ADIE in ADCSRA (0x7A) to enable the ADC interrupt.
+  // Without this, the internal interrupt will not trigger.
+  ADCSRA |= B00001000;
+  
+  // Enable global interrupts
+  // AVR macro included in <avr/interrupts.h>, which the Arduino IDE
+  // supplies by default.
+  sei();
+  
+  // Kick off the first ADC
+  readFlag = 0;
+  // Set ADSC in ADCSRA (0x7A) to start the ADC conversion
+  ADCSRA |=B01000000;
 }
-
-void displayInt(int value){
-  /*
-  byte thousands = ( value / 1000 ) % 10;
-  byte hundreds = ( value / 100 ) % 10;
-  byte tens = ( value / 10 ) % 10;
-  byte ones = value % 10;
-  
-  display.digits[0] = thousands;
-  display.digits[1] = hundreds;
-  display.digits[2] = tens;
-  display.digits[3] = ones;
-  display.decimals = 0x0;
-  */
-  
-  sprintf( display.digits, "% 4d", value );
-  display.decimals = 0;
-  if( display.digits[2] == ' ' ) display.digits[2] = '0';
-  
-  myDisplay.DisplayString(display.digits, display.decimals);
-
-}
-
-void displayDouble(double value){
-  char buffer[NUM_DIGITS + 1];
-  unsigned char minStringWidthIncDecimalPoint = NUM_DIGITS + 1;
-  char numVarsAfterDecimal = NUM_DIGITS + 1;
-  dtostrf( value, minStringWidthIncDecimalPoint, numVarsAfterDecimal, buffer );
-
-  int j=0;
-  boolean isLeadingZero = true;
-  for(int i=0;i<(NUM_DIGITS+1);i++){
-    boolean isDotNext = i<NUM_DIGITS && buffer[i+1] == '.';
-    
-    if( buffer[i] == '.' || ( buffer[i] == '0' && isLeadingZero && !isDotNext ) ) continue;
-    isLeadingZero = false;
-    if( buffer[i] < 48 ) continue;
-    byte number = buffer[i] - 48;
-    if( j<NUM_DIGITS ) {
-      display.digits[j] = number;
-      if( isDotNext ) display.decimals = j+1;
-    }
-    j++;
-  }  
-  
-  myDisplay.DisplayString(display.digits, display.decimals);
-
-}
-
-void displayFloat(float value){
-  char analogChars[NUM_DIGITS+1];
-  //char numChars[NUM_DIGITS];
-  dtostrf( speed, 5, 1, analogChars );
-  int j=0;
-  for(int i=0;i<5;i++){
-    if( analogChars[i] != '.' ) {
-      display.digits[j] = analogChars[i];
-      j++;
-    }
-    else{
-      display.decimals = 1 << (i-1);
-    }
-  }
-  
-  myDisplay.DisplayString(display.digits, display.decimals);
-    
-}
-
-
