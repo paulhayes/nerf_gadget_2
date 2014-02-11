@@ -27,22 +27,22 @@ Sensor Housing
 + 15mm x 10cm PVC plumbing pipe
 + Hardboard tube 20cm
 
-Step 1
+#### Step 1
 Following [these instructions](https://github.com/sparkfun/Serial7SegmentDisplay/wiki/Customizing%20the%20Display), for setting up Arduino IDE for use with Seven Segment Display. 
 
-Step 2
+#### Step 2
 Download pinchangeint-v2.19beta.zip from https://code.google.com/p/arduino-pinchangeint/downloads/list. Unzip the archive and put the three directories in your Arduino Library directory.
 
-Step 3
+#### Step 3
 Seperate the QRD1114 sensor and emitter from their housing. 
 
-Step 4
+#### Step 4
 Drill a 5mm hole through either side of the PVC pipe.
 
-Step 5 
+#### Step 5 
 Hot glue the ir sensor into one side of the pvc tube, being careful to not let any hot glue protrude into the tubes interior. Repeat the process on the other side of the tube with the ir emitter.
 
-Step 6
+#### Step 6
 Solder 4 wires from the sensor and emitter to your circuit board. 
 
 
