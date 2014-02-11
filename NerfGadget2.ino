@@ -26,16 +26,16 @@ boolean resetButtonLastState;
 int mode = 0;
 
 const int numMagazines = 5;
-int magazine = 0;
+volatile int magazine = 0;
 int magazines[5] = {6,12,18,25,35};
 
 
 SevSeg myDisplay;
 
-float speed = 0.0;
-double nerfDartLength = 0.07;
-const int maxDuration = (0ul)-1;
+volatile float speed = 0.0;
 
+const double nerfDartLength = 0.07;
+const unsigned long maxDuration = (0ul)-1;
 
 struct display
 {
@@ -51,6 +51,7 @@ unsigned long startTime = 0;
 unsigned long endTime = 0;
 
 void setup(){
+  /*
   initDisplay();
   
   pinMode(interruptPin, INPUT);
@@ -69,7 +70,10 @@ void setup(){
   //digitalWrite(modeButton, LOW);
   //digitalWrite(actionButton, LOW);
   //digitalWrite(resetButton, LOW);  
-  
+  */
+  Serial.begin(9600);
+  while(!Serial);
+  Serial.println("test");
 }
 
 void loop(){
@@ -226,13 +230,12 @@ void SpeedometerMode(){
 void changeDetected(){
   
   switch(mode){
+      case MODE_SPEEDOMETER:
+        SpeedometerMode();
       case MODE_MAGAZINE:
         if( digitalRead(interruptPin) == HIGH ){
           MagazineMode();
         }
-        break;
-      case MODE_SPEEDOMETER:
-        SpeedometerMode();
         break;
     }
   
