@@ -22,7 +22,7 @@ Circuit Components
 + 4x 10kΩ resistor
 + 1x 15kΩ resistor
 + [lithium polymer charger](https://www.sparkfun.com/products/10217)
-+ [lithium polymer battery](https://www.sparkfun.com/products/10718)
++ [400mAh lithium polymer battery](https://www.sparkfun.com/products/10718)
 
 Sensor Housing
 
